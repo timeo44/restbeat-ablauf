@@ -81,6 +81,13 @@ code{font-family:var(--mono);font-size:.9em}
 .panel.wide pre{white-space:pre-wrap;max-height:420px;overflow-y:auto;font-size:12px}
 .copy{font:inherit;font-family:var(--mono);font-size:12px;background:none;color:var(--fg);border:1px solid var(--line);border-radius:999px;padding:2px 10px;cursor:pointer}
 .copy:hover{border-color:var(--grey)}
+dialog.pm{width:min(860px,calc(100vw - 32px));max-height:calc(100vh - 48px);padding:0;border:1px solid var(--line);border-radius:16px;background:var(--bg);color:var(--fg)}
+dialog.pm::backdrop{background:rgba(0,0,0,.55)}
+.pm-in{display:flex;flex-direction:column;max-height:calc(100vh - 50px)}
+.pm-hd{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line)}
+.pm-hd h3{margin:0;font-weight:400;font-size:18px}
+.pm-hd div{display:flex;gap:8px}
+.pm pre{margin:0;border-radius:0;background:var(--soft);white-space:pre-wrap;overflow:auto;padding:20px;font-size:13px;line-height:1.7;flex:1;min-height:0}
 .phase{font-family:var(--mono);font-size:12px;color:var(--grey);margin:0 0 -16px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -206,6 +213,10 @@ code{font-family:var(--mono);font-size:.9em}
   </section>
 </div>
 
+<dialog class="pm" id="pm" aria-labelledby="pm-t"><div class="pm-in">
+  <div class="pm-hd"><h3 id="pm-t">prompt</h3><div><button class="copy" id="pm-copy" type="button">kopieren</button><button class="copy" id="pm-x" type="button" aria-label="schliessen">schliessen ✕</button></div></div>
+  <pre id="pm-text"></pre>
+</div></dialog>
 <script type="text/plain" id="raw-gpt">erstelle eine app die ich auf mein iphone installieren kann. sie hat den simplen zweck dass ich einen timer erstellen kann, der im hintergrund einen piepston abspielt in einem rythmus, sodass ich im gym  einen überblick habe wie lange ich pause machen muss. ich will es einmal starten und dann laufen lassen. es soll die musik nicht pausiern und auch als livecountdown/countup als Liveaktivität auf meinem Lockscreen sichtbar sein.
 und ich woll noch etwas anderes. ich will loggen können wann ich im gym war und dann wie eine consistency anzeige haben wie im anhang. und ich will, wenn ich z.B ein Tag nicht war, eine nachricht bekommen das ich gehen sollte. das ganze soll hochwertig und minimalistisch sein.
 gib mir den prompt ich will auf claude arbeiten dort habe ich das pro abo</script>
@@ -740,14 +751,21 @@ function show(id){
 }
 function go(n){show(ORDER[(i+n+ORDER.length)%ORDER.length])}
 document.querySelectorAll(".el").forEach(g=>{
-  g.addEventListener("click",()=>show(g.dataset.id));
-  g.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();show(g.dataset.id)}});
+  g.addEventListener("click",()=>{show(g.dataset.id);openPm(g.dataset.id)});
+  g.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();show(g.dataset.id);openPm(g.dataset.id)}});
 });
 $("copy").onclick=()=>{const t=$("code").textContent;const ok=()=>{$("copy").textContent="kopiert"};
   const sel=()=>{const r=document.createRange();r.selectNodeContents($("code"));const w=getSelection();w.removeAllRanges();w.addRange(r);$("copy").textContent="markiert · ⌘c"};
   try{navigator.clipboard.writeText(t).then(ok,sel)}catch(e){sel()}};
+function openPm(id){const d=D[id];if(!d.raw)return;$("pm-t").textContent=d.t;$("pm-text").textContent=$(d.raw).textContent;$("pm-copy").textContent="kopieren";
+  const m=$("pm");try{m.showModal()}catch(e){m.setAttribute("open","")}$("pm-text").scrollTop=0}
+$("pm-x").onclick=()=>$("pm").close();
+$("pm").addEventListener("click",e=>{if(e.target===$("pm"))$("pm").close()});
+$("pm-copy").onclick=()=>{const t=$("pm-text").textContent;const ok=()=>{$("pm-copy").textContent="kopiert"};
+  const sel=()=>{const r=document.createRange();r.selectNodeContents($("pm-text"));const w=getSelection();w.removeAllRanges();w.addRange(r);$("pm-copy").textContent="markiert · ⌘c"};
+  try{navigator.clipboard.writeText(t).then(ok,sel)}catch(e){sel()}};
 $("prev").onclick=()=>go(-1);$("next").onclick=()=>go(1);
-document.addEventListener("keydown",e=>{if(e.target.closest&&e.target.closest(".el"))return;if(e.key==="ArrowRight")go(1);if(e.key==="ArrowLeft")go(-1)});
+document.addEventListener("keydown",e=>{if($("pm").open)return;if(e.target.closest&&e.target.closest(".el"))return;if(e.key==="ArrowRight")go(1);if(e.key==="ArrowLeft")go(-1)});
 show("s0");
 </script>
 
