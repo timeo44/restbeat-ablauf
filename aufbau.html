@@ -29,6 +29,7 @@ body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);font-
 .switch a,.switch span{padding:6px 14px;border-radius:999px;text-decoration:none;color:var(--grey);white-space:nowrap;word-spacing:-.35em}
 .switch span{background:var(--fg);color:var(--bg)}
 .switch a:hover{color:var(--fg)}
+.switch .sep{width:1px;align-self:stretch;background:var(--line);margin:5px 4px}
 .switch a:focus-visible{outline:1px solid var(--fg);outline-offset:2px}
 h1{font-weight:300;font-size:clamp(28px,5vw,40px);line-height:1.15;letter-spacing:-.02em;margin:20px 0 0;text-wrap:balance}
 .lead{color:var(--grey);margin:8px 0 0;max-width:60ch}
@@ -57,7 +58,7 @@ code{font-family:var(--mono);font-size:.9em}
   <header>
     <div class="top">
       <div class="brand"><span class="mark"><i></i><i></i><i></i></span>restbeat</div>
-      <nav class="switch" aria-label="ansicht wechseln"><span aria-current="page">aufbau visualisierung</span><a href="./">ablauf</a><a href="https://claude.ai/artifact/QBufH4eT3HJ7WFXWuzQeNy" target="_blank" rel="noopener">prototyp ↗</a></nav>
+      <nav class="switch" aria-label="ansicht wechseln"><span aria-current="page">aufbau visualisierung</span><a href="./">ablauf</a><i class="sep" aria-hidden="true"></i><a href="https://claude.ai/artifact/QBufH4eT3HJ7WFXWuzQeNy" target="_blank" rel="noopener">prototyp ↗</a></nav>
     </div>
     <h1>wie diese seite gebaut ist</h1>
     <p class="lead">drei werkzeuge, ein weg: claude schreibt, github speichert, netlify stellt online. kein server, kein build.</p>
