@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>restbeat Workflow</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500&family=Geist+Mono:wght@400&display=swap">
+<style>
+/* layout: bpmn pool with five swimlanes, detail panel below, step controls; restbeat look — black/white + one grey, lowercase */
+:root{
+  --bg:#ffffff; --fg:#0e0e0f; --grey:#8d8d92; --line:#e4e4e7; --soft:#f4f4f5; --lane:#fafafa;
+  --sans:"Geist",ui-sans-serif,system-ui,-apple-system,sans-serif;
+  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#000000; --fg:#f4f4f5; --grey:#7a7a80; --line:#26262a; --soft:#111113; --lane:#08080a; color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#000000; --fg:#f4f4f5; --grey:#7a7a80; --line:#26262a; --soft:#111113; --lane:#08080a; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);font-weight:300;font-size:16px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 56px}
+.wrap{max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:13px;color:var(--grey)}
+.mark{display:flex;gap:4px}.mark i{width:7px;height:7px;border-radius:50%;background:var(--fg)}.mark i:last-child{background:none;border:1px solid var(--fg)}
+h1{font-weight:300;font-size:clamp(28px,5vw,40px);line-height:1.15;letter-spacing:-.02em;margin:20px 0 0;text-wrap:balance}
+.lead{color:var(--grey);margin:8px 0 0;max-width:60ch}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+svg{display:block;min-width:820px;width:100%;height:auto}
+.lane{fill:var(--lane);stroke:var(--line)}
+.lane-alt{fill:var(--bg);stroke:var(--line)}
+.lane-lbl{fill:var(--grey);font-family:var(--mono);font-size:12px}
+.flow{fill:none;stroke:var(--grey);stroke-width:1.2}
+.flow.back{stroke-dasharray:4 4}
+.assoc{fill:none;stroke:var(--grey);stroke-width:1;stroke-dasharray:1.5 3}
+.flow-lbl{fill:var(--grey);font-family:var(--mono);font-size:11px}
+.flag{fill:var(--fg);font-family:var(--mono);font-size:11px}
+.el{cursor:pointer;outline:none}
+.el .s{fill:var(--bg);stroke:var(--fg);stroke-width:1.2;transition:fill .2s,stroke-width .2s}
+.el .end{stroke-width:3}
+.el .key{stroke-width:2.4}
+.el text{fill:var(--fg);font-family:var(--sans);font-size:13px;font-weight:400;pointer-events:none;transition:fill .2s}
+.el text.m{font-family:var(--mono);font-size:12px}
+.el text.ms{font-family:var(--mono);font-size:11px}
+.el .ic{stroke:var(--fg);fill:none;stroke-width:1.4;pointer-events:none}
+.el .sub{fill:var(--grey);font-family:var(--mono);font-size:11px;font-weight:400}
+.el:hover .s{stroke-width:2}
+.el:hover .key{stroke-width:3}
+.el:focus-visible .s{stroke-width:2.6}
+.el.on .s{fill:var(--fg)}
+.el.on text:not(.sub){fill:var(--bg)}
+.el.on .ic{stroke:var(--bg)}
+.panel{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding-block:24px;min-height:240px}
+@media (max-width:640px){.panel{grid-template-columns:1fr;min-height:340px}}
+.meta{font-family:var(--mono);font-size:12px;color:var(--grey);display:flex;gap:12px;flex-wrap:wrap}
+.meta span{border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+.panel h2{font-weight:400;font-size:22px;margin:10px 0 8px;letter-spacing:-.01em;text-wrap:balance}
+.panel p{margin:0;color:var(--grey);max-width:56ch}
+.panel p b{font-weight:400;color:var(--fg)}
+pre{font-family:var(--mono);font-size:13px;line-height:1.7;background:var(--soft);border-radius:10px;padding:14px 16px;margin:0;overflow-x:auto;white-space:pre;color:var(--fg);align-self:start}
+pre .g{color:var(--grey)}
+.ctl{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.btn{font:inherit;font-family:var(--mono);font-size:13px;background:none;color:var(--fg);border:1px solid var(--line);border-radius:999px;padding:10px 18px;cursor:pointer}
+.btn:hover{border-color:var(--grey)}.btn:focus-visible{outline:1px solid var(--fg);outline-offset:2px}
+.btn.main{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.num{font-family:var(--mono);font-size:12px;color:var(--grey);font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:18px;font-family:var(--mono);font-size:12px;color:var(--grey)}
+.legend div{display:flex;align-items:center;gap:8px}
+.legend svg{min-width:0;width:auto;height:20px}
+.faq{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px}
+.faq h3{font-weight:400;font-size:15px;margin:0 0 4px}
+.faq p{margin:0;color:var(--grey);font-size:14px}
+code{font-family:var(--mono);font-size:.9em}
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.switch{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px;font-family:var(--mono);font-size:12px}
+.switch a,.switch span{padding:6px 14px;border-radius:999px;text-decoration:none;color:var(--grey);white-space:nowrap}
+.switch span{background:var(--fg);color:var(--bg)}
+.switch a:hover{color:var(--fg)}
+.switch a:focus-visible{outline:1px solid var(--fg);outline-offset:2px}
+.panel.wide{grid-template-columns:1fr}
+.panel.wide pre{white-space:pre-wrap;max-height:420px;overflow-y:auto;font-size:12px}
+.copy{font:inherit;font-family:var(--mono);font-size:12px;background:none;color:var(--fg);border:1px solid var(--line);border-radius:999px;padding:2px 10px;cursor:pointer}
+.copy:hover{border-color:var(--grey)}
+.phase{font-family:var(--mono);font-size:12px;color:var(--grey);margin:0 0 -16px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="top">
+      <div class="brand"><span class="mark"><i></i><i></i><i></i></span>restbeat</div>
+      <nav class="switch" aria-label="ansicht wechseln"><span aria-current="page">ablauf</span><a href="https://claude.ai/artifact/QBufH4eT3HJ7WFXWuzQeNy" target="_blank" rel="noopener">prototyp ↗</a></nav>
+    </div>
+    <h1>vom prompt aufs iphone</h1>
+    <p class="lead">der ganze ablauf als prozess, am beispiel chinesisch als neue sprache. tipp auf ein element oder spiel den ablauf durch.</p>
+  </header>
+
+  <p class="phase">projektstart · einmalig</p>
+  <div class="scroll">
+  <svg viewBox="0 0 920 130" role="img" aria-labelledby="dt0">
+    <title id="dt0">projektstart: idee, startprompt in chatgpt, startprompt in claude, claude baut mockups und app</title>
+    <rect class="lane" x="0" y="0" width="920" height="130"/>
+    <line x1="90" y1="0" x2="90" y2="130" stroke="var(--line)"/>
+    <text class="lane-lbl" x="16" y="69">start</text>
+    <path class="flow" d="M144 65H186" marker-end="url(#ar0)"/>
+    <path class="flow" d="M310 65H346" marker-end="url(#ar0)"/>
+    <path class="flow" d="M470 65H506" marker-end="url(#ar0)"/>
+    <path class="flow" d="M630 65H672" marker-end="url(#ar0)"/>
+    <defs><marker id="ar0" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9z" fill="var(--grey)"/></marker></defs>
+    <g class="el" data-id="s0" tabindex="0" role="button" aria-label="idee für die app"><circle class="s" cx="130" cy="65" r="14"/><text class="sub" x="130" y="98" text-anchor="middle">app-idee</text></g>
+    <g class="el" data-id="gpt" tabindex="0" role="button" aria-label="startprompt chatgpt"><rect class="s" x="190" y="37" width="120" height="56" rx="10"/><text x="250" y="61" text-anchor="middle">startprompt</text><text class="ms" x="250" y="78" text-anchor="middle">chatgpt</text></g>
+    <g class="el" data-id="clp" tabindex="0" role="button" aria-label="startprompt claude"><rect class="s" x="350" y="37" width="120" height="56" rx="10"/><text x="410" y="61" text-anchor="middle">startprompt</text><text class="ms" x="410" y="78" text-anchor="middle">claude</text></g>
+    <g class="el" data-id="phases" tabindex="0" role="button" aria-label="claude baut mockups und app"><rect class="s" x="510" y="37" width="120" height="56" rx="10"/><text x="570" y="61" text-anchor="middle">mockups</text><text x="570" y="78" text-anchor="middle">→ app</text></g>
+    <g class="el" data-id="v1" tabindex="0" role="button" aria-label="erste version"><circle class="s end" cx="690" cy="65" r="14"/><text class="sub" x="690" y="98" text-anchor="middle">restbeat v1</text></g>
+  </svg>
+  </div>
+  <p class="phase">danach · jede änderung so</p>
+  <div class="scroll">
+  <svg viewBox="0 0 920 660" role="img" aria-labelledby="dt">
+    <title id="dt">bpmn-ablauf: prompt, claude liest projektdateien und ändert code, prototyp wird nachgezogen, run baut und installiert aufs iphone</title>
+    <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9z" fill="var(--grey)"/></marker>
+    <marker id="oa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9" fill="none" stroke="var(--grey)" stroke-width="1.2"/></marker></defs>
+
+    <rect class="lane" x="0" y="0" width="920" height="110"/>
+    <rect class="lane-alt" x="0" y="110" width="920" height="110"/>
+    <rect class="lane" x="0" y="220" width="920" height="110"/>
+    <rect class="lane-alt" x="0" y="330" width="920" height="110"/>
+    <rect class="lane" x="0" y="440" width="920" height="110"/>
+    <rect class="lane-alt" x="0" y="550" width="920" height="110"/>
+    <line x1="90" y1="0" x2="90" y2="660" stroke="var(--line)"/>
+    <text class="lane-lbl" x="16" y="59">du</text>
+    <text class="lane-lbl" x="16" y="169">claude</text>
+    <text class="lane-lbl" x="16" y="279">prototyp</text>
+    <text class="lane-lbl" x="16" y="389">mac</text>
+    <text class="lane-lbl" x="16" y="499">xcode</text>
+    <text class="lane-lbl" x="16" y="609">iphone</text>
+
+    <path class="flow" d="M144 55H166" marker-end="url(#ar)"/>
+    <path class="flow" d="M230 83V133" marker-end="url(#ar)"/>
+    <path class="flow" d="M290 165H326" marker-end="url(#ar)"/>
+    <path class="flow" d="M450 165H476" marker-end="url(#ar)"/>
+    <path class="flow" d="M520 165H640V275H656" marker-end="url(#ar)"/>
+    <path class="flow" d="M780 275H812" marker-end="url(#ar)"/>
+    <path class="flow" d="M500 185V353" marker-end="url(#ar)"/>
+    <path class="assoc" d="M127 350L198 196" marker-end="url(#oa)"/>
+    <path class="assoc" d="M207 350L250 196" marker-end="url(#oa)"/>
+    <path class="flow" d="M510 413V463" marker-end="url(#ar)"/>
+    <path class="flow" d="M570 495H596" marker-end="url(#ar)"/>
+    <path class="flow" d="M640 495H676" marker-end="url(#ar)"/>
+    <text class="flow-lbl" x="648" y="487">ja</text>
+    <path class="flow back" d="M620 475V210H390V197" marker-end="url(#ar)"/>
+    <text class="flow-lbl" x="628" y="420">nein</text>
+    <path class="flow" d="M740 523V573" marker-end="url(#ar)"/>
+    <path class="flow" d="M800 605H842" marker-end="url(#ar)"/>
+
+    <g class="el" data-id="start" tabindex="0" role="button" aria-label="idee"><circle class="s" cx="130" cy="55" r="14"/><text class="sub" x="130" y="88" text-anchor="middle">idee</text></g>
+    <g class="el" data-id="prompt" tabindex="0" role="button" aria-label="prompt schreiben"><rect class="s" x="170" y="27" width="120" height="56" rx="10"/><text x="230" y="51" text-anchor="middle">prompt</text><text x="230" y="68" text-anchor="middle">schreiben</text></g>
+    <g class="el" data-id="lesen" tabindex="0" role="button" aria-label="projekt lesen"><rect class="s" x="170" y="137" width="120" height="56" rx="10"/><text x="230" y="161" text-anchor="middle">projekt</text><text x="230" y="178" text-anchor="middle">lesen</text></g>
+    <g class="el" data-id="code" tabindex="0" role="button" aria-label="code ändern"><rect class="s" x="330" y="137" width="120" height="56" rx="10"/><text x="390" y="161" text-anchor="middle">code</text><text x="390" y="178" text-anchor="middle">ändern</text></g>
+    <g class="el" data-id="split" tabindex="0" role="button" aria-label="parallel-gateway"><path class="s" d="M500 145L520 165L500 185L480 165Z"/><path class="ic" d="M500 157V173M492 165H508"/></g>
+
+    <g class="el" data-id="proto" tabindex="0" role="button" aria-label="prototyp nachziehen"><rect class="s" x="660" y="247" width="120" height="56" rx="10"/><text x="720" y="271" text-anchor="middle">prototyp</text><text x="720" y="288" text-anchor="middle">nachziehen</text></g>
+    <g class="el" data-id="protoend" tabindex="0" role="button" aria-label="prototyp aktuell"><circle class="s end" cx="830" cy="275" r="14"/><text class="sub" x="830" y="308" text-anchor="middle">prototyp aktuell</text></g>
+
+    <g class="el" data-id="claudemd" tabindex="0" role="button" aria-label="datei CLAUDE.md"><path class="s" d="M110 350H136L144 358V390H110Z"/><path class="ic" d="M136 350V358H144"/><text class="sub" x="127" y="408" text-anchor="middle">CLAUDE.md</text></g>
+    <g class="el" data-id="graph" tabindex="0" role="button" aria-label="datei graph-report"><path class="s" d="M190 350H216L224 358V390H190Z"/><path class="ic" d="M216 350V358H224"/><text class="sub" x="207" y="408" text-anchor="middle">graph-report</text></g>
+    <g class="el" data-id="reinstall" tabindex="0" role="button" aria-label="run, bauen und aufs iphone"><rect class="s key" x="450" y="357" width="120" height="56" rx="10"/><text x="510" y="381" text-anchor="middle">▶ run</text><text class="ms" x="510" y="398" text-anchor="middle">build + install</text></g>
+
+    <g class="el" data-id="build" tabindex="0" role="button" aria-label="xcodegen und kompilieren"><rect class="s" x="450" y="467" width="120" height="56" rx="10"/><text x="510" y="491" text-anchor="middle">xcodegen +</text><text x="510" y="508" text-anchor="middle">kompilieren</text></g>
+    <g class="el" data-id="ok" tabindex="0" role="button" aria-label="build ok?"><path class="s" d="M620 475L640 495L620 515L600 495Z"/><path class="ic" d="M613 488L627 502M627 488L613 502"/><text class="sub" x="620" y="532" text-anchor="middle">build ok?</text></g>
+    <g class="el" data-id="sign" tabindex="0" role="button" aria-label="signieren"><rect class="s" x="680" y="467" width="120" height="56" rx="10"/><text x="740" y="499" text-anchor="middle">signieren</text></g>
+    <g class="el" data-id="install" tabindex="0" role="button" aria-label="übertragen per wlan"><rect class="s" x="680" y="577" width="120" height="56" rx="10"/><text x="740" y="601" text-anchor="middle">übertragen</text><text x="740" y="618" text-anchor="middle">per wlan</text></g>
+    <g class="el" data-id="end" tabindex="0" role="button" aria-label="neue version läuft"><circle class="s end" cx="860" cy="605" r="14"/><text class="sub" x="860" y="638" text-anchor="middle">neue version läuft</text></g>
+  </svg>
+  </div>
+
+  <div class="legend" aria-label="legende">
+    <div><svg viewBox="0 0 20 20" width="20"><circle cx="10" cy="10" r="8" fill="none" stroke="var(--fg)" stroke-width="1.2"/></svg>start</div>
+    <div><svg viewBox="0 0 28 20" width="28"><rect x="1" y="2" width="26" height="16" rx="4" fill="none" stroke="var(--fg)" stroke-width="1.2"/></svg>aufgabe</div>
+    <div><svg viewBox="0 0 20 20" width="20"><path d="M4 1H13L17 5V19H4Z" fill="none" stroke="var(--fg)" stroke-width="1.2"/><path d="M13 1V5H17" fill="none" stroke="var(--fg)" stroke-width="1.2"/></svg>datei (quelle)</div>
+    <div><svg viewBox="0 0 20 20" width="20"><path d="M10 1L19 10L10 19L1 10Z" fill="none" stroke="var(--fg)" stroke-width="1.2"/><path d="M10 6V14M6 10H14" stroke="var(--fg)" stroke-width="1.2"/></svg>parallel</div>
+    <div><svg viewBox="0 0 20 20" width="20"><path d="M10 1L19 10L10 19L1 10Z" fill="none" stroke="var(--fg)" stroke-width="1.2"/><path d="M7 7L13 13M13 7L7 13" stroke="var(--fg)" stroke-width="1.2"/></svg>entscheidung</div>
+    <div><svg viewBox="0 0 20 20" width="20"><circle cx="10" cy="10" r="7.5" fill="none" stroke="var(--fg)" stroke-width="3"/></svg>ende</div>
+  </div>
+
+  <section class="panel" aria-live="polite">
+    <div>
+      <div class="meta"><span id="lane">du</span><span id="kind">start-ereignis</span><button class="copy" id="copy" type="button" hidden>kopieren</button></div>
+      <h2 id="title">idee</h2>
+      <p id="text"></p>
+    </div>
+    <pre id="code"></pre>
+  </section>
+
+  <div class="ctl">
+    <button class="btn" id="prev">← zurück</button>
+    <span class="num" id="num">1 / 20</span>
+    <button class="btn main" id="next">weiter →</button>
+  </div>
+
+  <section class="faq">
+    <div><h3>aktualisiert sich der code von selbst?</h3><p>nein. er ändert sich nur, wenn claude die dateien bearbeitet. aufs handy kommt er erst mit „run“.</p></div>
+    <div><h3>wo liegt der code?</h3><p>nur lokal auf dem mac in <code>~/Developer/RestBeat</code>. keine cloud, kein upload. der web-prototyp ist eine separate kopie.</p></div>
+  </section>
+</div>
+
+<script type="text/plain" id="raw-gpt">erstelle eine app die ich auf mein iphone installieren kann. sie hat den simplen zweck dass ich einen timer erstellen kann, der im hintergrund einen piepston abspielt in einem rythmus, sodass ich im gym  einen überblick habe wie lange ich pause machen muss. ich will es einmal starten und dann laufen lassen. es soll die musik nicht pausiern und auch als livecountdown/countup als Liveaktivität auf meinem Lockscreen sichtbar sein.
+und ich woll noch etwas anderes. ich will loggen können wann ich im gym war und dann wie eine consistency anzeige haben wie im anhang. und ich will, wenn ich z.B ein Tag nicht war, eine nachricht bekommen das ich gehen sollte. das ganze soll hochwertig und minimalistisch sein.
+gib mir den prompt ich will auf claude arbeiten dort habe ich das pro abo</script>
+<script type="text/plain" id="raw-claude">Projekt: RestBeat – Minimalistische Gym- und Consistency-App für iPhone
+
+Du bist ein Senior iOS Engineer, UI/UX Designer und Experte für SwiftUI, ActivityKit, WidgetKit, AVFoundation und moderne iOS-Architektur.
+
+Entwickle eine hochwertige, minimalistische, native iPhone-App namens RestBeat. Sie verbindet einen zuverlässigen Gym-Pausentimer mit einem visuellen Consistency-Tracker und intelligenten Erinnerungen, die mir helfen, regelmässig zu trainieren.
+
+WICHTIG: Du arbeitest in zwei strikt getrennten Phasen. Beginne ausschliesslich mit Phase 1, also den Design-Mockups. Programmiere noch keine native App und beginne Phase 2 erst, wenn ich die Mockups ausdrücklich freigegeben habe.
+
+Die beigefügte Bildreferenz ist die wichtigste visuelle Grundlage für das Design der App.
+
+⸻
+
+PHASE 1 – DESIGNKONZEPT UND MOCKUPS
+
+1. Ziel der ersten Phase
+
+Erstelle zuerst ein vollständiges visuelles Konzept für die App. Ich möchte das Design und die Bedienung beurteilen können, bevor du mit der technischen Entwicklung beginnst.
+
+Die Mockups sollen bereits wie eine hochwertige, fertige App aussehen und nicht wie einfache Wireframes.
+
+Erstelle bevorzugt eine interaktive HTML-Vorschau mit realistischen iPhone-Ansichten, die ich direkt in deiner Entwicklungsumgebung betrachten und bedienen kann.
+
+Falls du Zugriff auf eine Umgebung zur Erstellung und Vorschau von Websites hast, nutze diese, um einen interaktiven Prototyp zu erstellen. Verwende dafür HTML, CSS und JavaScript, wenn das die beste verfügbare Lösung ist.
+
+Falls deine Umgebung eine andere geeignete Möglichkeit bietet, die Mockups visuell darzustellen, nutze diese stattdessen. Behaupte nicht, eine Vorschau erstellt zu haben, wenn sie nicht tatsächlich verfügbar ist.
+
+Die Vorschau darf simulierte Interaktionen enthalten. Sie muss in dieser Phase noch keine echten iOS-Funktionen ausführen.
+
+2. Designreferenz und visuelle Identität
+
+Orientiere dich eng am beigefügten Referenzbild.
+
+Das gewünschte Erscheinungsbild:
+
+* Tiefschwarzer Hintergrund (#000000).
+* Weisse Punkte als zentrales visuelles Element.
+* Weisse, kompakte Typografie.
+* Dezente, präzise Beschriftungen in Grossbuchstaben.
+* Grosszügiger negativer Raum.
+* Klare Hierarchie und bewusst reduzierte Informationsdarstellung.
+* Kleine, subtile Animationen.
+* Sehr wenige Farben.
+* Keine überladenen Kartenlayouts.
+* Keine generischen Fitness-App-Elemente.
+* Keine Feuer-Emojis, Medaillen, unnötigen Badges oder kindlichen Gamification-Elemente.
+
+Die App soll ruhig, präzise, konsequent und hochwertig wirken. Das Design soll sich wie ein bewusst gestaltetes Premium-Produkt anfühlen.
+
+Die Consistency-Punkte aus der Referenz sollen nicht bloss dekorativ übernommen werden. Sie müssen echte Trainingsdaten visualisieren.
+
+Entwickle eine einheitliche visuelle Sprache für alle Ansichten.
+
+3. Mockup A: Consistency Dashboard
+
+Das Dashboard ist die zentrale Ansicht der App und soll beim Öffnen standardmässig erscheinen.
+
+Es soll folgende Elemente enthalten:
+
+* Eine minimalistische Überschrift, beispielsweise „THIS IS CONSISTENCY“.
+* Eine visuelle Darstellung meiner Trainingstage als Reihen weisser Punkte.
+* Eine Beschriftung für die jeweiligen Zeiträume.
+* Eine Ansicht für die letzten sieben Tage.
+* Eine Ansicht für die letzten 30 Tage.
+* Eine längerfristige Trainingshistorie.
+* Mein wöchentliches Trainingsziel.
+* Eine dezente Anzeige der bisherigen Trainingstage in der aktuellen Woche.
+* Eine Anzeige, wann ich zuletzt im Gym war.
+* Eine schnelle Aktion zum Protokollieren eines Trainings.
+
+Punktelogik
+
+Jeder Punkt repräsentiert einen konkreten Kalendertag.
+
+* Vollständig weisser Punkt: Für diesen Tag wurde mindestens ein Training protokolliert.
+* Leerer, weiss umrandeter Punkt: Für diesen Tag wurde kein Training protokolliert.
+* Zukünftige Tage werden zurückhaltend dargestellt und nicht als verpasste Trainingstage gewertet.
+* Der aktuelle Tag wird subtil hervorgehoben.
+
+Die Darstellung muss echte Kalenderdaten verwenden. Zeige realistische Beispieldaten, damit ich die Gestaltung beurteilen kann.
+
+Die Reihen sollen optisch möglichst nah an der Referenz liegen. Achte auf Punktgrösse, Abstände, Zeilenabstände, Schriftgrösse und die Gesamtkomposition.
+
+4. Mockup B: Trainingshistorie
+
+Erstelle eine Ansicht, in der ich meine Trainingskonstanz über einen längeren Zeitraum betrachten kann.
+
+Sie soll:
+
+* Mehrere Wochen untereinander darstellen.
+* Trainingstage klar von Tagen ohne Training unterscheiden.
+* Zwischen Wochen- und Monatsansicht wechseln können.
+* Ein konkretes Datum beim Antippen eines Punktes anzeigen.
+* Nachträglich protokollierte Trainingstage sichtbar machen.
+* Die gleiche minimalistische Gestaltung wie das Dashboard verwenden.
+
+Vermeide komplizierte Diagramme. Die Punktedarstellung soll das zentrale Element bleiben.
+
+5. Mockup C: Training protokollieren
+
+Ich möchte einen Gym-Besuch mit möglichst wenig Aufwand protokollieren können.
+
+Erstelle einen klar erkennbaren Button mit einer kurzen Beschriftung, beispielsweise:
+
+„LOG WORKOUT“
+
+Nach dem Antippen:
+
+* Wird ein Trainingstag protokolliert.
+* Wird der entsprechende Punkt aktualisiert.
+* Werden die Kennzahlen aktualisiert.
+* Erscheint höchstens eine dezente Bestätigung.
+
+Zeige auch, wie eine bereits protokollierte Trainingseinheit dargestellt wird.
+
+Mehrere Trainingseinheiten am selben Tag sollen grundsätzlich möglich sein. Für die Consistency zählt der Kalendertag jedoch nur einmal.
+
+Ich möchte vergangene Trainingstage nachtragen können. Entwirf dafür einen einfachen, intuitiven Ablauf.
+
+6. Mockup D: Timer im Ruhezustand
+
+Der Timer ist neben dem Consistency-Tracker die zweite Kernfunktion.
+
+Zeige eine minimalistische Timeransicht mit:
+
+* Grosser Timeranzeige.
+* Einstellbarer Pausendauer.
+* Einstellbarem Signalintervall.
+* Start-Button.
+* Einer zurückhaltenden Darstellung der wichtigsten Einstellungen.
+
+Beispielwerte:
+
+* Pausendauer: 90 Sekunden.
+* Signalintervall: alle 10 Sekunden.
+
+Die Einstellungen sollen schnell erreichbar sein, ohne den Bildschirm zu überladen.
+
+7. Mockup E: Laufender Timer
+
+Zeige die App während eines aktiven Intervalls.
+
+Die Ansicht soll enthalten:
+
+* Einen grossen, gut lesbaren Countdown.
+* Eine dezente Anzeige der verstrichenen Zeit.
+* Einen klaren Pause-/Fortsetzen-Button.
+* Einen Stop-Button.
+* Einen subtilen visuellen Hinweis, wenn ein Intervall endet.
+
+Nach dem Ablauf beginnt automatisch das nächste Intervall.
+
+Der laufende Timer soll auf das Wesentliche reduziert sein. Keine unnötigen Informationen oder dekorativen Elemente.
+
+8. Mockup F: Live Activity und Dynamic Island
+
+Zeige, wie der laufende Timer auf dem iPhone-Sperrbildschirm und in der Dynamic Island aussehen könnte.
+
+Die Live Activity soll darstellen:
+
+* Countdown bis zum Ende des aktuellen Intervalls.
+* Aktuellen Timerstatus.
+* Eine dezente Anzeige der verstrichenen Zeit oder des aktuellen Intervalls.
+
+Erstelle realistische Designvarianten für:
+
+* Sperrbildschirm.
+* Kompakte Dynamic Island.
+* Erweiterte Dynamic Island, soweit für die jeweilige Darstellung sinnvoll.
+
+Verwende eine realistische iPhone-Darstellung.
+
+Wichtig: In dieser Phase handelt es sich nur um Design-Mockups. Stelle nicht den Eindruck her, dass eine funktionierende Live Activity bereits implementiert wurde.
+
+9. Mockup G: Settings und Accountability
+
+Entwirf eine minimalistische Einstellungsansicht.
+
+Sie soll folgende Optionen visualisieren:
+
+Trainingsziel
+
+* Drei Trainingstage pro Woche.
+* Vier Trainingstage pro Woche.
+* Fünf Trainingstage pro Woche.
+* Optional ein individuell anpassbares Wochenziel.
+
+Trainingstage
+
+Möglichkeit, bevorzugte Trainingstage auszuwählen.
+
+Erinnerungen
+
+* Erinnerungen aktivieren oder deaktivieren.
+* Bevorzugte Uhrzeit einstellen.
+* Anzahl der Tage ohne Training einstellen, nach denen eine zusätzliche Erinnerung erfolgen soll.
+* Auswahl der Sprache: Deutsch oder Englisch.
+
+Die Ansicht soll schlicht und intuitiv bleiben.
+
+10. Mockup H: Erinnerungszustände
+
+Zeige, wie die App mit unterschiedlichen Trainingssituationen umgeht.
+
+Erstelle mindestens drei Beispiele:
+
+1. Mein Wochenziel ist noch nicht erreicht und heute ist ein bevorzugter Trainingstag.
+2. Ich war mehrere Tage nicht im Gym.
+3. Ich habe mein Wochenziel bereits erreicht.
+
+Die Benachrichtigungen sollen kurz, direkt und motivierend sein, aber nicht nerven.
+
+Beispiele:
+
+* „No workout logged. Time to move.“
+* „You said three times a week. Make it happen.“
+* „Your consistency is built today.“
+* „One session at a time.“
+* „No excuses. Get your session in.“
+
+Die App soll keine unnötigen Benachrichtigungen senden, wenn ich bereits trainiert oder mein Wochenziel erreicht habe.
+
+Zeige beispielhaft, wie eine Benachrichtigung auf dem iPhone aussehen könnte.
+
+11. Interaktiver Prototyp
+
+Wenn du eine interaktive HTML-Vorschau erstellst, implementiere folgende simulierte Interaktionen:
+
+* Navigation zwischen Consistency, Timer und Settings.
+* Wechsel zwischen 7-Tage-, 30-Tage- und längerfristiger Ansicht.
+* Antippen einzelner Consistency-Punkte.
+* Training protokollieren.
+* Countdown starten, pausieren, fortsetzen und stoppen.
+* Einstellen der Pausendauer und des Signalintervalls.
+* Wechseln zwischen den Einstellungsoptionen.
+* Anzeigen beispielhafter Erinnerungszustände.
+
+Die Interaktionen dienen ausschliesslich der Beurteilung des Konzepts. Es ist nicht notwendig, echte Benachrichtigungen, Hintergrund-Audio oder iOS-Live-Activities in dieser Phase zu implementieren.
+
+Verwende realistische Beispieldaten und stelle sicher, dass die Vorschau nicht nur aus statischen Screenshots besteht, wenn eine interaktive Umsetzung möglich ist.
+
+12. Präsentation und Feedback
+
+Präsentiere mir das Konzept so, dass ich alle wichtigen Ansichten beurteilen kann.
+
+Erkläre kurz:
+
+* Das visuelle Konzept.
+* Die Navigation.
+* Die wichtigsten Interaktionen.
+* Welche Designentscheidungen du getroffen hast.
+
+Stelle mir anschliessend gezielte Fragen, falls bei wichtigen Designentscheidungen meine Präferenz erforderlich ist.
+
+Ich möchte Änderungen verlangen können, beispielsweise:
+
+* Andere Schriftgrössen.
+* Kleinere oder grössere Punkte.
+* Mehr oder weniger Informationen.
+* Andere Abstände.
+* Anpassungen der Navigation.
+* Eine andere Darstellung des Timers.
+* Veränderungen an den Erinnerungen.
+
+Arbeite mein Feedback ein und aktualisiere die Mockups. Wenn sinnvoll, zeige zwei alternative Varianten einer konkreten Ansicht, statt mehrere komplett unterschiedliche Designrichtungen zu entwickeln.
+
+WICHTIG: Warte danach auf meine ausdrückliche Freigabe. Beginne nicht automatisch mit der Programmierung.
+
+⸻
+
+PHASE 2 – NATIVE IOS-APP
+
+Diese Phase darf erst beginnen, nachdem ich das Design ausdrücklich freigegeben habe.
+
+Nach der Freigabe entwickelst du die vollständige native iOS-App auf Basis der bestätigten Mockups.
+
+Die folgenden Anforderungen definieren die technische Umsetzung.
+
+13. Technologie und Architektur
+
+Verwende:
+
+* Swift.
+* SwiftUI.
+* ActivityKit.
+* WidgetKit.
+* AVFoundation.
+* UserNotifications.
+* SwiftData oder eine geeignete native lokale Datenhaltung.
+
+Erstelle ein vollständiges Xcode-Projekt mit einem iOS-App-Target und einer Widget Extension für Live Activities.
+
+Verwende ein geeignetes Deployment Target, das Live Activities unterstützt und möglichst viele relevante iPhones abdeckt.
+
+Verwende keine Web-App, PWA, React Native oder Flutter-Lösung als Ersatz für die native App.
+
+14. Timerfunktion
+
+Implementiere:
+
+* Einstellbare Pausendauer.
+* Einstellbares Signalintervall.
+* Start, Pause, Fortsetzen und Stoppen.
+* Countdown und verstrichene Zeit.
+* Automatische Wiederholung der Intervalle.
+* Speicherung der Timereinstellungen.
+* Korrekte Wiederherstellung des Timerzustands nach Hintergrundphasen.
+
+Beispiel: Bei einer Pausendauer von 90 Sekunden läuft der Countdown bis null und beginnt anschliessend automatisch wieder bei 90 Sekunden.
+
+Verwende tatsächliche Zeitstempel beziehungsweise monotone Zeitmessung statt eines ausschliesslich sekündlich dekrementierten Zählers.
+
+Vermeide Timerabweichungen, wenn die App suspendiert wird.
+
+Definiere die Zustände Idle, Running, Paused und Stopped eindeutig.
+
+15. Hintergrund-Pieptöne
+
+Die akustischen Signale sind eine Kernfunktion.
+
+Implementiere:
+
+* Kurze, klare Pieptöne.
+* Einstellbare Signalintervalle, beispielsweise 5, 10, 15 oder 30 Sekunden.
+* Optional einen separaten Ton am Intervallende.
+* Eine Möglichkeit, die Töne vollständig zu deaktivieren.
+
+Musik darf möglichst nicht unterbrochen werden
+
+Ich höre beim Training beispielsweise über Spotify oder Apple Music Musik auf meinem iPhone.
+
+Die App soll die Musikwiedergabe möglichst nicht pausieren und die Musik standardmässig auch nicht leiser machen.
+
+Untersuche eine geeignete AVAudioSession-Konfiguration, insbesondere .mixWithOthers und gegebenenfalls .duckOthers.
+
+Setze keine Audio-Konfiguration ein, die unnötig die Musikwiedergabe anderer Apps beendet.
+
+Untersuche die tatsächlichen Hintergrundausführungsregeln von iOS. Ein gewöhnlicher Timer, ein Background Task oder eine Live Activity allein garantiert keine zuverlässigen Hintergrund-Pieptöne.
+
+Implementiere die beste von iOS unterstützte Lösung. Verwende keine privaten APIs oder undokumentierten Tricks.
+
+Teste die Kombination aus:
+
+* Gesperrtem iPhone.
+* Im Hintergrund laufender App.
+* Gleichzeitiger Musikwiedergabe.
+* Wiederkehrenden Signaltönen.
+
+Wenn die gewünschte Funktion nicht vollständig garantiert werden kann, erkläre die konkrete Einschränkung und liefere eine realistische Alternative.
+
+16. Live Activity
+
+Implementiere die Live Activity mit ActivityKit und WidgetKit.
+
+Zeige:
+
+* Countdown.
+* Timerstatus.
+* Verbleibende Zeit.
+* Optional die verstrichene Gesamtzeit.
+
+Nutze Zeitstempel für die Countdown-Anzeige, damit sie ohne permanente sekündliche Updates korrekt bleibt.
+
+Aktualisiere die Live Activity bei Start, Pause, Fortsetzen und Stoppen.
+
+Berücksichtige die systembedingten Grenzen von Live Activities und Dynamic Island.
+
+Die Live Activity ist unabhängig von der eigentlichen Audioausführung zu behandeln.
+
+17. Trainingserfassung
+
+Implementiere einen schnellen lokalen Trainingslog.
+
+Jeder Trainingseintrag soll Datum und Uhrzeit speichern.
+
+Mehrere Trainingseinheiten am selben Tag sind möglich. Die Consistency-Auswertung zählt jeden Kalendertag jedoch nur einmal als Trainingstag.
+
+Unterstütze:
+
+* Schnelles Protokollieren.
+* Nachträgliches Erfassen.
+* Bearbeiten und Löschen von Einträgen.
+* Schutz vor versehentlichen Doppeleinträgen.
+* Sofortige Aktualisierung der Consistency-Anzeige.
+
+18. Consistency-Auswertung
+
+Implementiere:
+
+* 7-Tage-Ansicht.
+* 30-Tage-Ansicht.
+* Längerfristige Historie.
+* Anzahl der Trainingstage in der aktuellen Woche.
+* Anzahl der Trainingstage in den letzten 30 Tagen.
+* Zeit seit dem letzten Training.
+* Erfüllung des persönlichen Wochenziels.
+
+Unterscheide zwischen einer echten täglichen Streak und einem wöchentlichen Trainingsziel.
+
+Ein einzelner Ruhetag soll nicht automatisch als Versagen behandelt werden. Definiere die Wochenziel- und Streak-Logik nachvollziehbar und teste sie.
+
+Verwende echte Kalenderdaten und berücksichtige die lokale Zeitzone sowie den Wochenbeginn.
+
+19. Accountability und Erinnerungen
+
+Verwende lokale Benachrichtigungen mit UNUserNotificationCenter.
+
+Ermögliche:
+
+* Individuelles Wochenziel.
+* Auswahl bevorzugter Trainingstage.
+* Einstellbare Erinnerungszeit.
+* Einstellbare Anzahl von Tagen ohne Training.
+* Aktivieren und Deaktivieren von Erinnerungen.
+* Deutsche und englische Nachrichten.
+
+Plane Benachrichtigungen im Voraus, soweit iOS dies erlaubt.
+
+Aktualisiere die Planung nach Trainingseinträgen und Einstellungsänderungen.
+
+Vermeide doppelte und unnötige Benachrichtigungen. Wenn das Wochenziel bereits erreicht wurde oder ich am betreffenden Tag schon trainiert habe, soll keine überflüssige Aufforderung erscheinen.
+
+Frage nach der Berechtigung erst, wenn ich Erinnerungen aktivieren möchte.
+
+Verlasse dich nicht auf einen dauerhaft laufenden Hintergrundprozess.
+
+20. Datenschutz und Persistenz
+
+Die App soll vollständig offline funktionieren.
+
+Keine:
+
+* Registrierung.
+* Cloud-Synchronisation.
+* Werbung.
+* Analytik.
+* Standortabfragen.
+* Unnötigen Berechtigungen.
+* Datenübertragung an externe Server.
+
+Speichere Trainingseinträge, Ziele, Erinnerungsoptionen und Timereinstellungen lokal.
+
+Die Daten müssen App-Neustarts überstehen.
+
+21. Tests und Qualitätskontrolle
+
+Erstelle Unit-Tests für:
+
+* Timerberechnung.
+* Intervallwechsel.
+* Pausieren und Fortsetzen.
+* Wiederherstellung des Timerzustands.
+* Trainingseinträge.
+* Vermeidung doppelter Trainingstage.
+* Wochen- und Monatsauswertungen.
+* Wochenziele und Streak-Berechnungen.
+* Zeitzonenwechsel.
+* Benachrichtigungsplanung.
+
+Teste auf echter Hardware, soweit möglich, insbesondere die Hintergrund-Audiofunktion und Live Activities.
+
+Erfinde keine Testergebnisse. Wenn du keinen Zugriff auf Xcode oder ein echtes iPhone hast, benenne dies ausdrücklich.
+
+22. Lieferumfang
+
+Liefere nach der Designfreigabe:
+
+* Vollständiges Xcode-Projekt.
+* Native iOS-App.
+* Widget Extension.
+* Alle benötigten Swift-Dateien.
+* Erforderliche Assets und Audiodateien.
+* Lokale Datenhaltung.
+* Unit-Tests.
+* README mit Installations-, Build- und Testanleitung.
+
+Erkläre, wie ich die App auf meinem iPhone installiere, wie ich Signing und Bundle Identifier konfiguriere und welche Voraussetzungen ein kostenloses Apple-Developer-Konto gegenüber dem kostenpflichtigen Developer Program hat.
+
+Wenn du in einer Umgebung mit Xcode-Zugriff arbeitest, baue und teste das Projekt. Andernfalls liefere die Projektdateien so vollständig wie möglich und dokumentiere die verbleibenden Schritte.
+
+23. Verbindliche Arbeitsregeln
+
+1. Beginne ausschliesslich mit Phase 1.
+2. Erstelle die Mockups, bevor du die native App programmierst.
+3. Zeige mir die Mockups tatsächlich in einer verfügbaren Vorschau oder einem geeigneten visuellen Format.
+4. Warte auf mein Feedback.
+5. Überarbeite die Mockups nach meinen Änderungswünschen.
+6. Beginne Phase 2 erst nach meiner ausdrücklichen Designfreigabe.
+7. Verwende die freigegebenen Mockups als verbindliche Grundlage.
+8. Hole meine Zustimmung ein, wenn technische Einschränkungen wesentliche Designänderungen erforderlich machen.
+9. Liefere ein tatsächlich umgesetztes Projekt und keine blosse Beschreibung.
+
+DEINE AKTUELLE AUFGABE: Starte jetzt mit Phase 1. Entwickle das Designkonzept und die Mockups für RestBeat. Programmiere noch keine native iOS-App und warte anschliessend auf meine Freigabe.</script>
+<script>
+const G='<span class=g>',E='</span>';
+const D={
+ s0:{l:"start",k:"start-ereignis",t:"app-idee",x:"ein gym-pausentimer, der im hintergrund piept, ohne die musik zu stoppen, dazu ein consistency-tracker mit punkten und erinnerungen. so hat alles angefangen.",c:G+"// wunsch"+E+"\n· timer mit piepton im hintergrund\n· live activity auf dem lockscreen\n· trainings loggen + punkte-ansicht\n· erinnerung, wenn ich nicht war"},
+ gpt:{l:"start",k:"aufgabe · prompt",t:"startprompt chatgpt",x:"der allererste prompt. chatgpt hat daraus den ausführlichen prompt für claude geschrieben.",raw:"raw-gpt"},
+ clp:{l:"start",k:"aufgabe · prompt",t:"startprompt claude",x:"der prompt, mit dem restbeat bei claude gestartet wurde: zwei phasen, zuerst mockups, dann die native app erst nach freigabe.",raw:"raw-claude"},
+ phases:{l:"start",k:"aufgabe",t:"mockups → app",x:"<b>phase 1:</b> claude baut klickbare mockups, du gibst feedback, bis das design passt. <b>phase 2:</b> erst nach deiner freigabe entsteht die native swiftui-app mit widget und live activity.",c:"phase 1  mockups + prototyp\n         "+G+"→ feedback → freigabe"+E+"\nphase 2  xcode-projekt\n         "+G+"swiftui · activitykit · widgetkit"+E},
+ v1:{l:"start",k:"end-ereignis",t:"restbeat v1",x:"die erste version läuft auf dem iphone. ab hier läuft jede änderung über den ablauf unten.",c:G+"ab jetzt:"+E+"\nprompt → code ändern → run"},
+ start:{l:"du",k:"start-ereignis",t:"idee",x:"alles beginnt mit einer idee. im beispiel: die app soll auch <b>chinesisch</b> können.",c:G+"// ziel"+E+"\nsprachen: en, de, fr, ti, it\n        + zh"},
+ prompt:{l:"du",k:"aufgabe",t:"prompt schreiben",x:"du beschreibst in claude in normalen worten, was du willst. mehr musst du nicht tun.",c:"„füg chinesisch als sprache hinzu“"},
+ lesen:{l:"claude",k:"aufgabe",t:"projekt lesen",x:"claude holt sich die infos aus drei quellen, alle <b>auf deinem mac</b> im projektordner: zuerst CLAUDE.md, dann die graphify-karte, dann die betroffenen swift-dateien selbst.",c:G+"1"+E+" ~/Developer/RestBeat/CLAUDE.md\n  "+G+"→ regeln, wo was liegt, stand"+E+"\n"+G+"2"+E+" graphify-out/GRAPH_REPORT.md\n  "+G+"→ welche datei hängt mit welcher zusammen"+E+"\n"+G+"3"+E+" Shared/L10n.swift\n  Core/ReminderCopy.swift\n  "+G+"→ der echte code"+E},
+ claudemd:{l:"mac",k:"datei · quelle",t:"CLAUDE.md",x:"die projektzusammenfassung. claude code liest sie bei jeder sitzung <b>automatisch zuerst</b>. darin stehen die festen regeln, die wichtigsten dateien und der befehl zum bauen.",c:"~/Developer/RestBeat/CLAUDE.md\n\n"+G+"z.b.:"+E+"\n· alle ui-texte kleingeschrieben\n· woche beginnt am montag\n· texte → Shared/L10n.swift\n· run → tools/reinstall.sh"},
+ graph:{l:"mac",k:"datei · quelle",t:"graph-report",x:"eine automatisch erstellte karte des codes. so sieht claude, welche typen und dateien zusammenhängen, ohne jede datei zu öffnen. läuft lokal und gratis.",c:"graphify-out/GRAPH_REPORT.md\n\n"+G+"zentral:"+E+" SettingsStore, DayKey,\n  tr(), RestTimerEngine, L10n\n\n"+G+"neu aufbauen:"+E+"\ngraphify . --code-only --update"},
+ code:{l:"claude",k:"aufgabe",t:"code ändern",x:"die dateien werden direkt in <b>~/Developer/RestBeat</b> auf deinem mac bearbeitet. nur dort liegt der code.",c:"enum AppLanguage {\n  case en, de, fr, ti, it, zh\n}\n\n\"rest timer\"  "+G+"→"+E+" zh: \"休息计时器\"\n\"log workout\" "+G+"→"+E+" zh: \"记录训练\"\n"+G+"+ wochentage, monate, erinnerungen"+E},
+ split:{l:"claude",k:"parallel-gateway",t:"zwei wege gleichzeitig",x:"ab hier laufen zwei dinge parallel: der web-prototyp wird angepasst, und die echte app geht aufs handy.",c:G+"regel aus CLAUDE.md:"+E+"\nänderungen immer in app\nund prototyp nachziehen"},
+ proto:{l:"prototyp",k:"aufgabe",t:"prototyp nachziehen",x:"der klickbare web-nachbau bekommt dieselbe änderung. dafür braucht es kein iphone und kein xcode.",c:"artifact „restbeat prototyp“\n"+G+"→"+E+" language: 中文"},
+ protoend:{l:"prototyp",k:"end-ereignis",t:"prototyp aktuell",x:"wer den link hat, sieht chinesisch sofort im browser. praktisch für kollegen ohne die app.",c:G+"geteilt per link"+E+"\nclaude.ai/artifact/QBufH4…"},
+ reinstall:{l:"mac",k:"aufgabe · hier kommt's aufs handy",t:"run: bauen und aufs iphone",x:"<b>das ist der moment, in dem der neue code aufs iphone geht.</b> wie „run“ in xcode, nur als ein befehl im terminal. normalerweise startet claude ihn am ende selbst, du kannst ihn aber auch eintippen. danach läuft alles von allein: bauen, signieren, übertragen.",c:"~/Developer/RestBeat/tools/reinstall.sh --force\n\n"+G+"prüfen:"+E+"\ntail -n 2 ~/Library/Logs/restbeat-reinstall.log\n"+G+"→ „done“ = auf dem handy"+E},
+ build:{l:"xcode",k:"aufgabe",t:"xcodegen + kompilieren",x:"xcodegen baut aus <b>project.yml</b> das xcode-projekt neu. danach kompiliert xcode app, widget und live activity, ganz ohne xcode-fenster.",c:"project.yml "+G+"→"+E+" RestBeat.xcodeproj\nxcodebuild "+G+"→"+E+" RestBeat.app\n             + widgets"},
+ ok:{l:"xcode",k:"entscheidung",t:"build ok?",x:"<b>ja:</b> weiter zum signieren. <b>nein:</b> der mac zeigt eine mitteilung, claude liest das log, behebt den fehler und es geht zurück zu „code ändern“.",c:G+"bei „build failed“:"+E+"\ntail -n 40 ~/Library/Logs/\n  restbeat-reinstall.log"},
+ sign:{l:"xcode",k:"aufgabe",t:"signieren",x:"die app wird mit deinem gratis personal team signiert. so darf sie auf dein iphone, aber nur für 7 tage.",c:"team-id   7689C2U6GA\nbundle-id ch.timeozobrist.restbeat\n"+G+"gültig: 7 tage"+E},
+ install:{l:"iphone",k:"aufgabe",t:"übertragen per wlan",x:"die app geht ohne kabel aufs iphone. mac und iphone müssen im selben wlan sein, und das iphone muss seit dem letzten neustart einmal entsperrt worden sein.",c:"xcrun devicectl device install app\n  --device <iphone-id> RestBeat.app\n"+G+"→ mitteilung: „restbeat neu installiert"+E+"\n"+G+"  – wieder 7 tage gültig“"+E},
+ end:{l:"iphone",k:"end-ereignis",t:"neue version läuft",x:"fertig. jetzt nur noch umstellen, und die app spricht chinesisch.",c:"settings "+G+"→"+E+" general "+G+"→"+E+" language\n"+G+"→"+E+" 中文"}
+};
+const ORDER=["s0","gpt","clp","phases","v1","start","prompt","lesen","claudemd","graph","code","split","proto","protoend","reinstall","build","ok","sign","install","end"];
+let i=0;
+const $=id=>document.getElementById(id);
+function show(id){
+  const d=D[id];i=ORDER.indexOf(id);
+  $("lane").textContent=d.l;$("kind").textContent=d.k;$("title").textContent=d.t;$("text").innerHTML=d.x;
+  const panel=document.querySelector(".panel");
+  if(d.raw){$("code").textContent=$(d.raw).textContent;$("code").scrollTop=0;panel.classList.add("wide");$("copy").hidden=false;$("copy").textContent="kopieren";}
+  else{$("code").innerHTML=d.c;panel.classList.remove("wide");$("copy").hidden=true;}
+  $("num").textContent=(i+1)+" / "+ORDER.length;
+  $("next").textContent=i===ORDER.length-1?"nochmal ↺":"weiter →";
+  document.querySelectorAll(".el").forEach(g=>g.classList.toggle("on",g.dataset.id===id));
+}
+function go(n){show(ORDER[(i+n+ORDER.length)%ORDER.length])}
+document.querySelectorAll(".el").forEach(g=>{
+  g.addEventListener("click",()=>show(g.dataset.id));
+  g.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();show(g.dataset.id)}});
+});
+$("copy").onclick=()=>{const t=$("code").textContent;const ok=()=>{$("copy").textContent="kopiert"};
+  const sel=()=>{const r=document.createRange();r.selectNodeContents($("code"));const w=getSelection();w.removeAllRanges();w.addRange(r);$("copy").textContent="markiert · ⌘c"};
+  try{navigator.clipboard.writeText(t).then(ok,sel)}catch(e){sel()}};
+$("prev").onclick=()=>go(-1);$("next").onclick=()=>go(1);
+document.addEventListener("keydown",e=>{if(e.target.closest&&e.target.closest(".el"))return;if(e.key==="ArrowRight")go(1);if(e.key==="ArrowLeft")go(-1)});
+show("s0");
+</script>
+
+</body>
+</html>
