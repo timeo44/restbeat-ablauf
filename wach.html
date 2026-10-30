@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>restbeat wach</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400&family=Geist+Mono:wght@400&display=swap">
+<style>
+/* layout: one centered column, lock screen first, then a single big toggle */
+:root{
+  --bg:#000; --fg:#f4f4f5; --grey:#7a7a80; --line:#26262a; --soft:#111113; --ok:#4cd964;
+  --sans:"Geist",ui-sans-serif,system-ui,-apple-system,sans-serif;
+  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);font-weight:300;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px;
+  display:flex;align-items:center;justify-content:center}
+.box{width:100%;max-width:380px;display:flex;flex-direction:column;align-items:center;gap:22px;text-align:center}
+.mark{display:flex;gap:5px}.mark i{width:8px;height:8px;border-radius:50%;background:var(--fg)}.mark i:last-child{background:none;border:1px solid var(--fg)}
+.lbl{font-family:var(--mono);font-size:11px;letter-spacing:.5px;color:var(--grey)}
+.pins{display:flex;gap:14px}
+.pins i{width:14px;height:14px;border-radius:50%;border:1px solid var(--fg);transition:background .15s}
+.pins i.on{background:var(--fg)}
+.pad{display:grid;grid-template-columns:repeat(3,72px);gap:14px}
+.pad button{width:72px;height:72px;border-radius:50%;border:1px solid var(--line);background:none;color:var(--fg);font:300 26px var(--sans);cursor:pointer}
+.pad button:active{background:var(--soft)}
+.pad button:focus-visible,.big:focus-visible{outline:1px solid var(--fg);outline-offset:3px}
+.pad .ghost{border:0;font:11px var(--mono);color:var(--grey)}
+.err{font-family:var(--mono);font-size:11px;color:#ff6b6b;min-height:14px}
+.shake{animation:shake .3s}
+@keyframes shake{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.big{width:200px;height:200px;border-radius:50%;border:1px solid var(--fg);background:none;color:var(--fg);font:300 22px var(--sans);cursor:pointer;position:relative;transition:background .3s,color .3s}
+.big.on{background:var(--fg);color:var(--bg)}
+.status{display:flex;flex-direction:column;gap:8px;width:100%;border-top:1px solid var(--line);padding-top:16px}
+.row{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;color:var(--grey)}
+.row b{font-weight:400;color:var(--fg)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--grey);margin-right:6px;vertical-align:1px}
+.dot.ok{background:var(--ok)}
+.note{font-size:13px;color:var(--grey);line-height:1.5;max-width:34ch}
+#cursor{position:fixed;width:10px;height:10px;border-radius:50%;background:var(--fg);opacity:.0;pointer-events:none;transition:left 1.2s ease,top 1.2s ease,opacity .3s}
+@media (prefers-reduced-motion:reduce){#cursor{transition:opacity .3s}}
+</style>
+</head>
+<body>
+<div class="box" id="gate">
+  <div class="mark"><i></i><i></i><i></i></div>
+  <div class="lbl">code eingeben</div>
+  <div class="pins" id="pins"><i></i><i></i><i></i><i></i></div>
+  <div class="pad" id="pad">
+    <button type="button">1</button><button type="button">2</button><button type="button">3</button>
+    <button type="button">4</button><button type="button">5</button><button type="button">6</button>
+    <button type="button">7</button><button type="button">8</button><button type="button">9</button>
+    <span></span><button type="button">0</button><button type="button" class="ghost" data-del>löschen</button>
+  </div>
+  <div class="err" id="err" aria-live="polite"></div>
+</div>
+
+<div class="box" id="main" hidden>
+  <div class="mark"><i></i><i></i><i></i></div>
+  <button type="button" class="big" id="toggle" aria-pressed="false">start</button>
+  <div class="status">
+    <div class="row"><span>bildschirm wach</span><b id="s-wake"><span class="dot"></span>aus</b></div>
+    <div class="row"><span>simulierte bewegungen</span><b id="s-moves">0</b></div>
+    <div class="row"><span>läuft seit</span><b id="s-time">0:00</b></div>
+  </div>
+  <p class="note">hält den bildschirm wach und simuliert alle 20 sekunden eine mausbewegung auf dieser seite. tab offen und im vordergrund lassen.</p>
+</div>
+<div id="cursor" aria-hidden="true"></div>
+
+<script>
+(function(){
+  'use strict';
+  var HASH='744cb589264c96306fffec041bce90f9185249144497cbf1919ce670a99b6b7e', KEY='rb.wach.ok';
+  var $=function(id){return document.getElementById(id)};
+  var code='';
+  function sha(t){return crypto.subtle.digest('SHA-256',new TextEncoder().encode(t)).then(function(b){return Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,'0')}).join('')})}
+  function pins(){[].forEach.call($('pins').children,function(p,i){p.classList.toggle('on',i<code.length)})}
+  function unlock(){$('gate').hidden=true;$('main').hidden=false;try{sessionStorage.setItem(KEY,'1')}catch(e){}}
+  function press(d){
+    if(d==='del'){code=code.slice(0,-1);pins();return}
+    if(code.length>=4)return;
+    code+=d;pins();$('err').textContent='';
+    if(code.length===4){sha(code).then(function(h){
+      if(h===HASH){unlock()}else{$('err').textContent='falscher code';$('pins').classList.add('shake');setTimeout(function(){$('pins').classList.remove('shake');code='';pins()},350)}
+    })}
+  }
+  $('pad').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;press(b.hasAttribute('data-del')?'del':b.textContent)});
+  document.addEventListener('keydown',function(e){if(!$('gate').hidden){if(/^[0-9]$/.test(e.key))press(e.key);if(e.key==='Backspace')press('del')}});
+  try{if(sessionStorage.getItem(KEY)==='1')unlock()}catch(e){}
+
+  var on=false,lock=null,moveT=null,clockT=null,t0=0,moves=0;
+  function setWake(ok){$('s-wake').innerHTML='<span class="dot'+(ok?' ok':'')+'"></span>'+(ok?'an':'aus')}
+  function getLock(){
+    if(!('wakeLock' in navigator)){setWake(false);return}
+    navigator.wakeLock.request('screen').then(function(l){lock=l;setWake(true);l.addEventListener('release',function(){setWake(false)})}).catch(function(){setWake(false)});
+  }
+  function move(){
+    var x=40+Math.random()*(innerWidth-80),y=40+Math.random()*(innerHeight-80),c=$('cursor');
+    c.style.opacity='.35';c.style.left=x+'px';c.style.top=y+'px';
+    ['mousemove','pointermove'].forEach(function(t){document.dispatchEvent(new MouseEvent(t,{clientX:x,clientY:y,bubbles:true}))});
+    moves++;$('s-moves').textContent=moves;
+  }
+  function tickClock(){var s=Math.floor((Date.now()-t0)/1000);$('s-time').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
+  function start(){on=true;t0=Date.now();moves=0;getLock();move();moveT=setInterval(move,20000);clockT=setInterval(tickClock,1000);$('toggle').textContent='stopp';$('toggle').classList.add('on');$('toggle').setAttribute('aria-pressed','true')}
+  function stop(){on=false;clearInterval(moveT);clearInterval(clockT);if(lock){lock.release().catch(function(){});lock=null}setWake(false);$('cursor').style.opacity='0';$('toggle').textContent='start';$('toggle').classList.remove('on');$('toggle').setAttribute('aria-pressed','false')}
+  $('toggle').addEventListener('click',function(){on?stop():start()});
+  document.addEventListener('visibilitychange',function(){if(on&&document.visibilityState==='visible'&&!lock)getLock()});
+})();
+</script>
+</body>
+</html>
